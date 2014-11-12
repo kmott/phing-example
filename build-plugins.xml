@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="Plugins" default="" basedir=".">
+  <property name="source_dir" value="."/>
+
+  <!-- Install plugins -->
+  <target name="plugins" depends="plugins_custom,plugins_copy">
+    <exec command="php ${temp_deployment_dir}/assets/_core/php/_devtools/plugin_unattended.php"
+          dir="${temp_deployment_dir}/assets/_core/php/_devtools"
+          checkreturn="true"
+          error="${temp_deployment_dir}/build/logs/plugins.stderr.log"
+          output="${temp_deployment_dir}/build/logs/plugins.stdout.log"/>
+  </target>
+
+  <!-- Copy custom and standard plugin zip files (if enabled) -->
+  <target name="plugins_copy">
+    <if>
+      <equals arg1="${plugins_install}" arg2="all" casesensitive="false"/>
+        <then>
+          <phingcall target="plugins_copy_zip">
+            <property name="plugin" value="*" override="true"/>
+          </phingcall>
+        </then>
+        <elseif>
+          <equals arg1="${plugins_install}" arg2="none" casesensitive="false"/>
+            <then>
+             <echo message="Skipping installation of plugins, plugins not enabled."/>
+            </then>
+        </elseif>
+        <else>
+          <foreach list="${plugins_install}" param="plugin" target="plugins_copy_zip" />
+        </else>
+    </if>
+  </target>
+  
+  <!-- Copy a single plugin file .zip -->
+  <target name="plugins_copy_zip">
+    <copy todir="${temp_deployment_dir}/includes/tmp/plugin.install" overwrite="true">
+      <fileset dir="${vendor_src_dir}/qcubed/${qcubed_version}/plugins">
+        <include name="${plugin}.zip"/>
+      </fileset>
+    </copy>    
+  </target>
+  
+  <!-- Create custom plugin zip files -->
+  <target name="plugins_custom">
+    <foreach param="filename" absparam="absolute_filename" target="plugins_build">
+      <fileset id="pluginFileSet" dir="${vendor_src_dir}/qcubed/${qcubed_version}/plugins/src">
+        <include name="Q*"/>
+      </fileset>
+    </foreach>
+  </target>
+  
+  <target name="plugins_build">
+    <uptodate property="plugin_needs_updating" targetfile="${vendor_src_dir}/qcubed/${qcubed_version}/plugins/${filename}.zip">
+      <fileset dir="${absolute_filename}">
+        <include name="**"/>
+      </fileset>
+    </uptodate>
+    <if>
+      <not><isset property="plugin_needs_updating"/></not>
+     <then>
+       <echo message="Plugin ${filename} needs updating, building..." />
+       <phingcall target="plugins_zip">
+         <property name="filename" value="${filename}" override="true"/>
+       </phingcall>
+     </then>
+     <else>
+       <echo message="Plugin ${filename} does not need updating, skipping..."/>
+     </else>
+    </if>
+  </target>
+  
+  <!-- Create the ZIP archive -->
+  <target name="plugins_zip">
+    <delete file="${vendor_src_dir}/qcubed/${qcubed_version}/plugins/${filename}.zip"/>
+    <zip destfile="${vendor_src_dir}/qcubed/${qcubed_version}/plugins/${filename}.zip">
+      <fileset dir="${vendor_src_dir}/qcubed/${qcubed_version}/plugins/src/${filename}">
+        <include name="**" />
+      </fileset>
+    </zip>
+  </target>
+</project>

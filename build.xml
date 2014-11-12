@@ -1,0 +1,463 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+     This is the KLM specific QCubed PHING deployment XML.  Released under MIT license.
+     
+     ==> USE AT YOUR OWN PERIL <==
+
+     NOTE: You probably want to read this PHING build file from the bottom to the top, as that
+           is approximately how it was setup to run.  Example for running phing:
+
+     vendor/lib/bin/phing -buildfile build.xml -propertyfile build.props clean create_temp_deployment_dir \
+     unzip_qcubed copy_project_files database_clean database configuration_temp codegen plugins test \
+     deploy permission configuration_deployment
+-->
+<project name="QCubed" default="" basedir=".">
+  <!-- This includes the Composer dependency classes for PHING -->
+  <php expression="include('${application.startdir}/${vendor_src_dir}/lib/autoload.php')"/>	
+
+  <!-- This sets a property for the temporary deployment dir (where we copy everything to
+       prior to copying it to the actual deployment directory).  This is "as the web server
+       sees it", and is meant to aid in debugging and deploying of builds. -->
+  <property name="temp_deployment_dir"  value="${application.startdir}/${project_built_dir}"/>
+
+  <!-- Get the svn_last_rev prop setup -->
+  <!-- This code is commented out due to mis-match of SVN client versions, and haven't had
+       time to troubleshoot/fix (yet).
+    <if>
+      <equals arg1="${host.os}" arg2="Linux"/>
+        <then>
+          <svnlastrevision workingcopy="${project_src_dir}" propertyname="svn_last_rev"/>
+        </then>
+    <elseif>
+      <equals arg1="${host.os}" arg2="WINNT"/>
+        <then>
+          <svnlastrevision svnpath="/usr/bin/svn" workingcopy="${project_src_dir}" propertyname="svn_last_rev"/>
+        </then>
+      </elseif>
+    </if>
+   -->
+
+
+  <!-- Sets up the configuration file for the temp_deployment_dir -->
+  <target name="configuration_deployment">
+    <phingcall target="configuration_copy">
+      <property name="allow_remote_admin" value="(bool)false" override="true"/>
+      <property name="docroot_dir" value="${deployment_dir}" override="true"/>
+      <property name="overwrite" value="true" override="true"/>
+      <property name="source_file" value="${vendor_src_dir}/qcubed/${qcubed_version}/configuration/configuration.inc.php" override="true"/>
+      <property name="destination_file" value="${deployment_dir}/includes/configuration/configuration.inc.php" override="true"/>
+    </phingcall>
+  </target>
+  
+  <!-- Fixup permissions of extracted qcubed ZIP -->
+  <target name="permission">
+    <chmod mode="0777">
+      <fileset dir="${deployment_dir}/includes">
+        <include name="tmp**"/>
+        <include name="formbase_classes_generated**"/>
+        <include name="model**"/>
+        <include name="meta_controls**"/>
+        <include name="qcubed/plugins**"/>
+      </fileset>
+    </chmod>
+  </target>
+  
+  <!-- Copy built application to deployment_dir -->
+  <target name="deploy" depends="deploy_clean">
+    <if>
+      <equals arg1="${include_examples}" arg2="true"/>
+      <then>
+        <echo message="Including examples directory for this build..."/>
+        <copy todir="${deployment_dir}" overwrite="true">
+          <fileset dir="${temp_deployment_dir}">
+            <include name="**"/>
+            <exclude name="drafts**"/>
+            <exclude name="build**"/>
+            <exclude name="built**"/>
+            <exclude name="integration**"/>
+            <exclude name="sample*.php"/>
+            <exclude name="assets/_core/php/_devtools**"/>
+            <exclude name="includes/qcubed/_core/_devtools_cli**"/>
+            <exclude name="includes/qcubed/_core/tests**"/>
+            <exclude name="includes/configuration/configuration.inc.php.sample"/>
+          </fileset>
+        </copy>
+      </then>
+      <else>
+      
+      <echo message="Excluding examples directory for this build..."/>
+	    <copy todir="${deployment_dir}" overwrite="true">
+	      <fileset dir="${temp_deployment_dir}">
+	        <include name="**"/>
+	        <exclude name="drafts**"/>
+	        <exclude name="build**"/>
+	        <exclude name="built**"/>
+	        <exclude name="integration**"/>
+	        <exclude name="sample*.php"/>
+	        <exclude name="assets/_core/php/_devtools**"/>
+	        <exclude name="assets/_core/php/examples**"/>
+	        <exclude name="includes/qcubed/_core/_devtools_cli**"/>
+	        <exclude name="includes/qcubed/_core/tests**"/>
+	        <exclude name="includes/configuration/configuration.inc.php.sample"/>
+	      </fileset>
+	    </copy>
+      </else>
+    </if>
+  </target>
+  
+  <!-- Clean out the deployment_dir destination of all files/folders -->
+  <target name="deploy_clean">
+    <available file="${deployment_dir}" type="dir" property="directory_exists" value="true"/>
+    <if>
+      <equals arg1="${host.os}" arg2="Linux"/>
+        <then>
+          <phingcall target="clean_linux">
+            <property name="directory_exists" value="${directory_exists}"/>
+            <property name="clean_directory" value="${deployment_dir}"/>
+            <property name="working_directory" value ="${temp_deployment_dir}"/>
+            <property name="check_return" value="true"/>
+            <property name="error_log" value="${temp_deployment_dir}/build/logs/deploy_clean.linux.stderr.log"/>
+            <property name="output_log" value="${temp_deployment_dir}/build/logs/deploy_clean.linux.stdout.log"/>
+          </phingcall>
+        </then>
+      <elseif>
+        <equals arg1="${host.os}" arg2="WINNT"/>
+          <then>
+            <phingcall target="clean_windows">
+              <property name="directory_exists" value="${directory_exists}"/>
+              <property name="clean_directory" value="${deployment_dir}"/>
+              <property name="working_directory" value ="${temp_deployment_dir}"/>
+              <property name="check_return" value="true"/>
+              <property name="error_log" value="${temp_deployment_dir}/build/logs/deploy_clean.windows.stderr.log"/>
+              <property name="output_log" value="${temp_deployment_dir}/build/logs/deploy_clean.windows.stdout.log"/>
+            </phingcall>
+          </then>
+      </elseif>
+    </if>
+  </target>
+  
+  <target name="documentation">
+    <foreach list="${documentation_dirs}" param="directory" target="documentation_generate" />
+  </target>
+  
+  <!-- Documentation Generate Target -->
+  <target name="documentation_generate" description="Documentation Target" depends="documentation_clean,documentation_mkdir">
+    <phpdoc2 title="/${directory} Documentation" destdir="${temp_deployment_dir}/docs/${directory}" template="responsive">
+      <fileset dir="${temp_deployment_dir}/${directory}">
+        <include name="**/*.php"/>
+      </fileset>
+
+      <!-- PHP Form Scripts -->
+      <!-- Commented out right now because it adds A LOT of time to build, and it's not technically needed.
+      <fileset dir=".">
+        <include name="**/*.php"/>
+        <exclude name="**/*.tpl.php"/>
+        <exclude name="**/*.inc.php"/>
+      </fileset>
+      -->
+    </phpdoc2>
+  </target>
+
+  <!-- Create documentation dir -->
+  <target name="documentation_mkdir">
+    <mkdir dir="${temp_deployment_dir}/docs/${directory}"/>
+  </target>
+
+  <!-- Clean out generated documentation -->
+  <target name="documentation_clean">
+    <delete includeemptydirs="true">
+      <fileset dir="${temp_deployment_dir}/docs/${directory}">
+        <include name="**"/>
+      </fileset>
+    </delete>
+  </target>
+
+  <!-- Run tests -->
+  <target name="test">
+    <foreach list="${test_dirs}" param="directory" target="test_generate" />
+  </target>
+  
+  <target name="test_generate">
+    <echo message="Running unit tests on ${temp_deployment_dir}/${directory}..." />
+    <phing phingfile="${vendor_src_dir}/test/test.xml" target="test" haltonfailure="true" inheritAll="true">
+      <property name="classes_under_test_dir" value="${temp_deployment_dir}/${directory}"/>
+    </phing>
+  </target>
+
+  <!-- Install plugins -->
+  <target name="plugins">
+    <phing phingfile="${vendor_src_dir}/build/build-plugins.xml" target="plugins" haltonfailure="true" inheritAll="true"/>
+  </target>
+  
+  <!-- Sets up the configuration file for the temp_deployment_dir -->
+  <target name="codegen" depends="codegen_prepend">
+    <if>
+      <equals arg1="${host.os}" arg2="Linux"/>
+        <then>
+          <phingcall target="codegen_run">
+            <property name="command" value="php codegen.cli"/>
+            <property name="working_directory" value ="${temp_deployment_dir}/includes/qcubed/_core/_devtools_cli"/>
+            <property name="check_return" value="true"/>
+            <property name="error_log" value="${temp_deployment_dir}/build/logs/codegen.linux.stderr.log"/>
+            <property name="output_log" value="${temp_deployment_dir}/build/logs/codegen.linux.stdout.log"/>
+          </phingcall>
+        </then>
+      <elseif>
+        <equals arg1="${host.os}" arg2="WINNT"/>
+          <then>
+            <phingcall target="codegen_run">
+              <property name="command" value="php codegen.phpexe"/>
+              <property name="working_directory" value ="${temp_deployment_dir}/includes/qcubed/_core/_devtools_cli"/>
+              <property name="check_return" value="true"/>
+              <property name="error_log" value="${temp_deployment_dir}/build/logs/codegen.windows.stderr.log"/>
+              <property name="output_log" value="${temp_deployment_dir}/build/logs/codegen.windows.stdout.log"/>
+            </phingcall>
+          </then>
+      </elseif>
+    </if>
+  </target>
+  
+  <!-- Run the codegen command for the incoming platform -->
+  <target name="codegen_run">
+    <exec command="${command}"
+          dir="${working_directory}"
+          checkreturn="${check_return}"
+          error="${error_log}"
+          output="${output_log}"/>
+  </target>
+  
+  <!-- Create the path_to_prepend.txt file -->
+  <target name="codegen_prepend" depends="codegen_inc_fixup">
+    <echo message="${temp_deployment_dir}/includes/configuration" file="${temp_deployment_dir}/includes/qcubed/_core/_devtools_cli/path_to_prepend.txt"/>
+  </target>
+  
+  <!-- Fix bug in codegen.inc.php not requiring codgen_cli.inc.php
+       Reference: http://qcu.be/content/require-cliprependincphp-commented-out-codegenincphp -->
+  <target name="codegen_inc_fixup">
+    <copy overwrite="true"  
+          file="${vendor_src_dir}/qcubed/${qcubed_version}/configuration/codegen.inc.php"  
+          tofile="${temp_deployment_dir}/includes/qcubed/_core/_devtools_cli/codegen.inc.php"/>
+  </target>
+  
+  <!-- Sets up the configuration file for the temp_deployment_dir -->
+  <target name="configuration_temp">
+    <phingcall target="configuration_copy">
+      <property name="docroot_dir" value="${temp_deployment_dir}" override="true"/>
+      <property name="overwrite" value="true" override="true"/>
+      <property name="source_file" value="${vendor_src_dir}/qcubed/${qcubed_version}/configuration/configuration.inc.php" override="true"/>
+      <property name="destination_file" value="${temp_deployment_dir}/includes/configuration/configuration.inc.php" override="true"/>
+    </phingcall>
+  </target>
+  
+  <!-- Create the configuration using the associated properties -->
+  <target name="configuration_copy">
+    <copy overwrite="${overwrite}"  
+          file="${source_file}"  
+          tofile="${destination_file}">  
+      <filterchain>   
+        <replacetokens begintoken="@@" endtoken="@@">
+          <token key="svn_last_rev" value="${svn_last_rev}" />
+          <token key="svn_branch_ver" value="${svn_branch_ver}" />
+          <token key="server_instance" value="${server_instance}" />
+          <token key="allow_remote_admin" value="${allow_remote_admin}"/>
+          <token key="docroot_dir" value="${docroot_dir}"/>
+          <token key="virtual_directory" value="${virtual_directory}"/>
+          <token key="subdirectory" value="${subdirectory}"/>
+          <token key="db_1_type" value="${db_1_type}"/>
+          <token key="db_1_adapter" value="${db_1_adapter}"/>
+          <token key="db_1_host" value="${db_1_host}"/>
+          <token key="db_1_port" value="${db_1_port}"/>
+          <token key="db_1_database" value="${db_1_database}"/>
+          <token key="db_1_username" value="${db_1_username}"/>
+          <token key="db_1_password" value="${db_1_password}"/>
+          <token key="db_1_profiling" value="${db_1_profiling}"/>
+          <token key="db_1_caching" value="${db_1_caching}"/>
+          <token key="db_2_type" value="${db_2_type}"/>
+          <token key="db_2_adapter" value="${db_2_adapter}"/>
+          <token key="db_2_host" value="${db_2_host}"/>
+          <token key="db_2_port" value="${db_2_port}"/>
+          <token key="db_2_database" value="${db_2_database}"/>
+          <token key="db_2_username" value="${db_2_username}"/>
+          <token key="db_2_password" value="${db_2_password}"/>
+          <token key="db_2_profiling" value="${db_2_profiling}"/>
+          <token key="db_2_caching" value="${db_2_caching}"/>
+          <token key="db_3_type" value="${db_3_type}"/>
+          <token key="db_3_adapter" value="${db_3_adapter}"/>
+          <token key="db_3_host" value="${db_3_host}"/>
+          <token key="db_3_port" value="${db_3_port}"/>
+          <token key="db_3_database" value="${db_3_database}"/>
+          <token key="db_3_username" value="${db_3_username}"/>
+          <token key="db_3_password" value="${db_3_password}"/>
+          <token key="db_3_profiling" value="${db_3_profiling}"/>
+          <token key="db_3_caching" value="${db_3_caching}"/>
+          <token key="db_4_type" value="${db_4_type}"/>
+          <token key="db_4_adapter" value="${db_4_adapter}"/>
+          <token key="db_4_host" value="${db_4_host}"/>
+          <token key="db_4_port" value="${db_4_port}"/>
+          <token key="db_4_database" value="${db_4_database}"/>
+          <token key="db_4_username" value="${db_4_username}"/>
+          <token key="db_4_password" value="${db_4_password}"/>
+          <token key="db_4_profiling" value="${db_4_profiling}"/>
+          <token key="db_4_caching" value="${db_4_caching}"/>
+          <token key="db_5_type" value="${db_5_type}"/>
+          <token key="db_5_adapter" value="${db_5_adapter}"/>
+          <token key="db_5_host" value="${db_5_host}"/>
+          <token key="db_5_port" value="${db_5_port}"/>
+          <token key="db_5_database" value="${db_5_database}"/>
+          <token key="db_5_username" value="${db_5_username}"/>
+          <token key="db_5_password" value="${db_5_password}"/>
+          <token key="db_5_profiling" value="${db_5_profiling}"/>
+          <token key="db_5_caching" value="${db_5_caching}"/>
+          <token key="max_databases" value="${max_databases}"/>
+          <token key="jquery_base" value="${jquery_base}"/>
+          <token key="jquery_effects" value="${jquery_effects}"/>
+          <token key="jquery_css" value="${jquery_css}"/>
+        </replacetokens>  
+      </filterchain>   
+    </copy>  
+  </target>
+  
+  <!-- Database Target -->
+  <target name="database">
+    <foreach list="${enabled_databases}" param="db_id" target="database_generate" />
+  </target>
+  
+  <!-- Database generate target -->
+  <target name="database_generate">
+    <phing phingfile="${vendor_src_dir}/build/build-database.xml" target="database" haltonfailure="true" inheritAll="true">
+      <property name="db_id" value="${db_id}" override="true"/>
+    </phing>
+  </target>
+  
+  <!-- Database Clean Target -->
+  <target name="database_clean">
+    <foreach list="${enabled_databases}" param="db_id" target="database_clean_generate" />
+  </target>
+  
+  <!-- Database clean generate target -->
+  <target name="database_clean_generate">
+    <phing phingfile="${vendor_src_dir}/build/build-database.xml" target="database_clean" haltonfailure="true" inheritAll="true">
+      <property name="db_id" value="${db_id}" override="true"/>
+    </phing>
+  </target>
+  
+  <!--  Copy project specific files/folders -->
+  <target name="copy_project_files">
+    <copy todir="${temp_deployment_dir}" overwrite="true">
+      <fileset dir="${project_src_dir}">
+        <include name="**"/>
+        <exclude name="built**"/>
+      </fileset>
+      <filterchain>   
+        <replacetokens begintoken="@@" endtoken="@@">
+          <token key="svn_last_rev" value="${svn_last_rev}" />
+          <token key="svn_branch_ver" value="${svn_branch_ver}" />
+          <token key="app_name" value="${app_name}"/>
+          <token key="app_icon" value="${app_icon}"/>
+          <token key="app_home" value="${app_home}"/>
+          <token key="app_show_footer" value="${app_show_footer}"/>
+          <token key="app_mode" value="${app_mode}"/>
+        </replacetokens>  
+      </filterchain> 
+    </copy>  
+  </target>
+  
+  <!-- Unzip the qcubed framework to the temp_deployment_dir -->
+  <target name="unzip_qcubed">
+    <unzip todir="${temp_deployment_dir}">
+      <fileset dir="${vendor_src_dir}/qcubed/${qcubed_version}/archive">
+        <include name="*.zip"/>
+      </fileset>
+    </unzip>
+  </target>
+  
+  <!-- Create the temp_deployment_dir directory -->
+  <target name="create_temp_deployment_dir">
+    <mkdir dir="${temp_deployment_dir}"/>
+    <mkdir dir="${temp_deployment_dir}/build/logs"/>
+  </target>
+  
+  <!-- Clean out the temp_deployment_dir destination of all files/folders -->
+  <target name="clean">
+    <available file="${temp_deployment_dir}" type="dir" property="directory_exists" value="true"/>
+    <if>
+      <equals arg1="${host.os}" arg2="Linux"/>
+        <then>
+          <phingcall target="clean_linux">
+            <property name="directory_exists" value="${directory_exists}"/>
+            <property name="clean_directory" value="${temp_deployment_dir}"/>
+            <property name="working_directory" value ="."/>
+            <property name="check_return" value="true"/>
+            <property name="error_log" value="${temp_deployment_dir}/build/logs/clean.linux.stderr.log"/>
+            <property name="output_log" value="${temp_deployment_dir}/build/logs/clean.linux.stdout.log"/>
+          </phingcall>
+        </then>
+      <elseif>
+        <equals arg1="${host.os}" arg2="WINNT"/>
+          <then>
+            <phingcall target="clean_windows">
+              <property name="directory_exists" value="${directory_exists}"/>
+              <property name="clean_directory" value="${temp_deployment_dir}"/>
+              <property name="working_directory" value ="."/>
+              <property name="check_return" value="true"/>
+              <property name="error_log" value="${temp_deployment_dir}/build/logs/clean.windows.stderr.log"/>
+              <property name="output_log" value="${temp_deployment_dir}/build/logs/clean.windows.stdout.log"/>
+            </phingcall>
+          </then>
+      </elseif>
+    </if>
+  </target>
+
+  <!-- Clean out passed in directory for Linux build hosts -->
+  <target name="clean_linux">
+    <if>
+      <equals arg1="${directory_exists}" arg2="1"/>
+        <then>
+          <exec command="sudo rm -rf ${clean_directory}"
+                dir="${working_directory}"
+                checkreturn="${check_return}"
+                error="${error_log}"
+                output="${output_log}"/>
+        </then>
+    </if>
+  </target>
+
+  <!-- Clean out passed in directory for Windows build hosts -->
+  <target name="clean_windows">
+    <if>
+      <equals arg1="${directory_exists}" arg2="1"/>
+        <then>
+	      <delete includeemptydirs="true" quiet="true">
+	        <fileset dir="${clean_directory}" defaultexcludes="false">
+	          <include name="**"/>
+	        </fileset>
+	      </delete>
+        </then>
+    </if>
+  </target>
+  
+  <!-- Run PHP Lint on main files first -->
+  <target name="lint">
+    <echo message="Checking php lint on '${project_src_dir}'"/>
+    <phplint haltonfailure="true">
+	  <fileset dir="${project_src_dir}">
+	    <include name="*.php"/>
+	  </fileset>
+    </phplint>
+    
+    <echo message="Checking php lint on '${project_src_dir}/includes'"/>
+    <phplint haltonfailure="true">
+      <fileset dir="${project_src_dir}/includes">
+        <include name="**/*.php"/>
+        <exclude name="app_includes/app_configuration.inc.php"/>
+      </fileset>
+    </phplint>
+    
+    <echo message="Checking php lint on '${project_src_dir}/assets/php'"/>
+    <phplint haltonfailure="true">
+      <fileset dir="${project_src_dir}/assets/php">
+        <include name="**/*.php"/>
+      </fileset>
+    </phplint>
+  </target>
+</project>

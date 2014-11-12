@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="Database" default="" basedir=".">
+  <property name="source_dir" value="."/>
+  
+  <!-- Database Target -->
+  <target name="database">
+    <!-- Clean out existing dbdeploy scripts -->
+    <phingcall target="dbdeploy_clean">
+      <property name="clean_dir" value="${temp_deployment_dir}/build/sql/deploy/" override="true"/>
+    </phingcall>
+
+    <!-- Create the directory -->
+    <phingcall target="dbdeploy_mkdir">
+      <property name="mkdir_dir" value="${temp_deployment_dir}/build/sql/deploy/" override="true"/>
+    </phingcall>
+    
+    <!-- Setup dbdeploy queries for enabled database -->
+    <property name="db_type" value="${db_${db_id}_type}" override="true"/>
+    <property name="db_host" value="${db_${db_id}_host}" override="true"/>
+    <property name="db_port" value="${db_${db_id}_port}" override="true"/>
+    <property name="db_database" value="${db_${db_id}_database}" override="true"/>
+    <property name="db_username" value="${db_${db_id}_username}" override="true"/>
+    <property name="db_password" value="${db_${db_id}_password}" override="true"/>
+    
+    <!-- Setup and run statements query -->
+    <phingcall target="run_dbdeploy">
+      <property name="source_dir" value="${temp_deployment_dir}/build/sql/deltas/statements" override="true"/>
+      <property name="output_file" value="${temp_deployment_dir}/build/sql/deploy/statements-${db_id}-deploy.sql" override="true"/>
+      <property name="undo_file" value="${temp_deployment_dir}/build/sql/deploy/statements-${db_id}-undo.sql" override="true"/>
+      <property name="delta_set" value="statements" override="true"/>
+    </phingcall>
+
+    <!-- Setup and run procedures query -->
+    <phingcall target="run_dbdeploy">
+      <property name="source_dir" value="${temp_deployment_dir}/build/sql/deltas/procedures" override="true"/>
+      <property name="output_file" value="${temp_deployment_dir}/build/sql/deploy/procedures-${db_id}-deploy.sql" override="true"/>
+      <property name="undo_file" value="${temp_deployment_dir}/build/sql/deploy/procedures-${db_id}-undo.sql" override="true"/>
+      <property name="delta_set" value="procedures" override="true"/>
+    </phingcall>
+    
+    <!-- Setup and run inserts query -->
+    <phingcall target="run_dbdeploy">
+      <property name="source_dir" value="${temp_deployment_dir}/build/sql/deltas/inserts" override="true"/>
+      <property name="output_file" value="${temp_deployment_dir}/build/sql/deploy/inserts-${db_id}-deploy.sql" override="true"/>
+      <property name="undo_file" value="${temp_deployment_dir}/build/sql/deploy/inserts-${db_id}-undo.sql" override="true"/>
+      <property name="delta_set" value="inserts" override="true"/>
+    </phingcall>
+    
+    <!-- Setup and run statements query -->
+    <phingcall target="run_dbquery">
+      <property name="db_delimiter" value=";" override="true"/>
+      <property name="sql_file" value="${temp_deployment_dir}/build/sql/deploy/statements-${db_id}-deploy.sql" override="true"/>
+      <property name="report_type" value="xml" override="true"/>
+      <property name="report_file" value="${temp_deployment_dir}/build/logs/statements-deploy-${db_id}-output.xml" override="true"/>
+    </phingcall>
+
+      <!-- Setup and run procedures query -->
+    <phingcall target="run_dbquery">
+      <property name="db_delimiter" value="$$" override="true"/>
+      <property name="sql_file" value="${temp_deployment_dir}/build/sql/deploy/procedures-${db_id}-deploy.sql" override="true"/>
+      <property name="report_type" value="xml" override="true"/>
+      <property name="report_file" value="${temp_deployment_dir}/build/logs/procedures-deploy-${db_id}-output.xml" override="true"/>
+    </phingcall>
+    
+    <!-- Setup and run inserts query -->
+    <phingcall target="run_dbquery">
+      <property name="db_delimiter" value=";" override="true"/>
+      <property name="sql_file" value="${temp_deployment_dir}/build/sql/deploy/inserts-${db_id}-deploy.sql" override="true"/>
+      <property name="report_type" value="xml" override="true"/>
+      <property name="report_file" value="${temp_deployment_dir}/build/logs/inserts-deploy-${db_id}-output.xml" override="true"/>
+    </phingcall>
+  </target>
+
+  <!-- Run database query -->
+  <target name="run_dbquery">
+    <pdosqlexec url="${db_type}:host=${db_host};port=${db_port};dbname=${db_database}" userid="${db_username}" password="${db_password}" delimiter="${db_delimiter}" delimitertype="normal">
+      <transaction src="${sql_file}"/>
+      <formatter type="${report_type}" outfile="${report_file}"/>
+    </pdosqlexec>
+  </target>
+
+  <!-- Run dbdeploy -->
+  <target name="run_dbdeploy">
+    <dbdeploy url="${db_type}:host=${db_host};dbname=${db_database}"
+              userid="${db_username}" password="${db_password}"
+              deltaset="${delta_set}" dir="${source_dir}"  
+              outputfile="${output_file}"    
+              undooutputfile="${undo_file}" />    
+  </target>
+
+  <!-- Clean out generated dbdeploy files -->
+  <target name="dbdeploy_clean">
+    <delete includeemptydirs="true">
+      <fileset dir="${clean_dir}">
+        <include name="**"/>
+      </fileset>
+    </delete>
+  </target>
+  
+  <!-- Create the dbdeploy directory -->
+  <target name="dbdeploy_mkdir">
+    <mkdir dir="${mkdir_dir}"/>
+  </target>
+  
+  <!-- Clean Database Target -->
+  <target name="database_clean">
+    <property name="db_type" value="${db_${db_id}_type}" override="true"/>
+    <property name="db_host" value="${db_${db_id}_host}" override="true"/>
+    <property name="db_port" value="${db_${db_id}_port}" override="true"/>
+    <property name="db_database" value="${db_${db_id}_database}" override="true"/>
+    <property name="db_username" value="${db_${db_id}_username}" override="true"/>
+    <property name="db_password" value="${db_${db_id}_password}" override="true"/>
+       
+    <!-- Setup and run inserts query -->
+    <phingcall target="run_dbquery">
+      <property name="db_delimiter" value=";" override="true"/>
+      <property name="sql_file" value="${temp_deployment_dir}/build/sql/deltas/statements/00000-clean.sql" override="true"/>
+      <property name="report_type" value="xml" override="true"/>
+      <property name="report_file" value="${temp_deployment_dir}/build/logs/clean-database-${db_id}-output.xml" override="true"/>
+    </phingcall>
+  </target>
+</project>

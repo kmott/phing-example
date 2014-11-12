@@ -1,0 +1,77 @@
+# The server instance we are building for.  Usually a simple name like 'tac-win8-01',
+#  or 'development' or 'production'.
+server_instance=tac-dev-01
+
+# The svn branch version.
+#  For 'trunk' builds: TRUNK-
+#  For 'released' builds: major.minor version (Example: 1.0 or 1.2) 
+svn_branch_ver=TRUNK-
+
+# The source directory for the project, where all project specific files are pulled
+#  from.
+project_src_dir=projects/webappl/trunk
+
+# The built directory for the project, where all project specific files are copied
+#  to.
+project_built_dir=projects/webappl/trunk-built
+
+# Where all integration specific files/folders (qcubed, phing, etc.).
+vendor_src_dir=vendor/trunk
+
+# Where we will actually copy the files to once everything is built, tested, and
+#  documentation is run.  Usually somewhere under 'inetpub' on Windows or
+#  '/var/www' on Linux
+deployment_dir=/var/www/localhost/htdocs/webappl/trunk
+
+# If you want to include the 'examples' folder in your deployment, then set this
+#  to true.
+include_examples=true
+
+# This is the version of qcubed that will be installed for this webappl instance. From
+#  the directory: ${vendor_src_dir}/qcubed/${qcubed_version}
+qcubed_version=2.2.2
+
+# plugins_install is a comma-separated list of plugins that you want installed for this
+#  qcubed instance.
+#  Valid options: none|all|comma-separated list
+#  Example: QFirebug,QFlot,QAuthLDAP
+#  Example: none
+plugins_install=all
+
+# test_dirs and documentat_dirs are a comma-separated list of directories that you want
+#  phpunit tests (test_dirs) and docblox (documentation_dirs) to automatically generate
+#  and run tests, as well as generate docblox documentaion.
+#  - Test files are put in ${temp_deployment_dir}/built/tests
+#  - Documentation files are put in ${temp_deployment_dir}/docs/${documentation_dirs}
+test_dirs=assets/php
+documentation_dirs=assets/php
+
+# phpunit_skelgen_classpath is where we can find the proper PHPUnitSkelGenTask definition
+#  for phing to run the skeleton generator.  We can also enable debug logging if needed.
+phpunit_skelgen_classpath=vendor.trunk.test.PHPUnitSkelGenTask.PHPUnitSkelGenTask
+phpunit_skelgen_debug=true
+
+# QCubed configuration.inc.php Props
+allow_remote_admin=true
+docroot_dir=/var/www/localhost/htdocs/webappl/trunk
+virtual_directory=/webappl/trunk
+subdirectory=
+enabled_databases=1
+max_databases=1
+db_1_type=mysql
+db_1_adapter=MySqli5
+db_1_host=localhost
+db_1_port=3306
+db_1_database=webappltrunk
+db_1_username=webappl
+db_1_password=s3cr3t
+db_1_profiling=false
+db_1_caching=false
+app_name=WebAppl
+app_icon=
+app_home=/webappl/trunk/
+app_show_footer=true
+app_mode=true
+jquery_base=http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js
+jquery_effects=http://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
+jquery_css=../../css/jquery/jquery-ui.custom.css
